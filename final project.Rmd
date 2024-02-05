@@ -1,0 +1,240 @@
+---
+title: "Final Project"
+author: "Debayan Sen"
+date: "11/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+# loading in the data
+df <- read.csv("states.csv")
+summary(df)
+```
+
+```{r}
+library(mosaic)
+inspect(df)
+```
+
+
+```{r}
+a <- summarize_at(group_by(df, YEAR), vars(TOTAL_REVENUE), funs(mean(.,na.rm=TRUE)))
+tail(a)
+plot(a$TOTAL_REVENUE~a$YEAR)
+```
+
+
+```{r}
+table(df$YEAR[complete.cases(df)==F])
+```
+
+```{r}
+#excluding 1992
+df_2016 = subset(df, df$YEAR != 1992)
+df_2016 = subset(df, df$YEAR == 2016)
+```
+
+```{r}
+#finding out greatest and least amount of revenue 
+df_2016 <- df_2016[order(df_2016$TOTAL_REVENUE),]
+
+head(df_2016)
+tail(df_2016)
+```
+
+
+
+
+
+```{r}
+#loading in the data
+df_scores <- read.csv("naep.csv")
+```
+
+
+
+```{r}
+#merging the data
+df_merged <- merge(df, df_scores, by=c("STATE", "YEAR"))
+df_merged$AVG_SCORE = as.numeric(df_merged$AVG_SCORE)
+df_merged$TEST_SUBJECT = as.factor(df_merged$TEST_SUBJECT)
+df_merged$TEST_YEAR = as.factor(df_merged$TEST_YEAR)
+```
+
+```{r}
+write.csv(df_merged, "df_merged.csv")
+```
+
+```{r}
+df_2015 = subset(df_merged, df_merged$YEAR == 2015)
+model_2015 = lm(AVG_SCORE ~ log(LOCAL_REVENUE) + log(CAPITAL_OUTLAY_EXPENDITURE) + TEST_YEAR + TEST_SUBJECT, data=df_2015)
+summary(model_2015)
+```
+
+
+
+
+
+```{r}
+#looking at mathematics scores
+df_merged_math  = subset(df_merged, df_merged$TEST_SUBJECT == "Mathematics")
+df_merged_reading = subset(df_merged, df_merged$TEST_SUBJECT == "Reading")
+df_merged_math = subset(df_merged_math, df_merged_math$YEAR == 2015)
+df_merged_reading = subset(df_merged_reading, df_merged_reading$YEAR == 2015)
+
+df_merged_math_order = df_merged_math[order(df_merged_math$AVG_SCORE, decreasing=TRUE),]
+df_merged_reading_order = df_merged_reading[order(df_merged_reading$AVG_SCORE, decreasing=TRUE),]
+```
+
+```{r}
+head(df_merged_math_order)
+head(df_merged_reading_order)
+```
+
+```{r}
+tail(df_merged_math_order)
+tail(df_merged_reading_order)
+```
+
+
+
+```{r}
+inspect(df_merged_math)
+```
+
+```{r}
+df_merged_math$AVG_SCORE <- as.double(df_merged_math$AVG_SCORE)
+```
+
+```{r}
+#fitting a linear model
+
+#getting rid of columns we do not need
+
+model1 <- lm(AVG_SCORE ~ FEDERAL_REVENUE+CAPITAL_OUTLAY_EXPENDITURE + TEST_YEAR, data=df_merged_math)
+summary(model1)
+```
+
+```{r}
+library(car)
+vif(model1)
+```
+
+
+
+```{r}
+plot(model1, which=1)
+```
+
+```{r}
+hist(model1$residuals)
+```
+
+
+```{r}
+library(funModeling)
+plot_num(df_merged_math)
+```
+
+```{r}
+model2 <- lm(AVG_SCORE ~ log(LOCAL_REVENUE+0.01) + log(CAPITAL_OUTLAY_EXPENDITURE+0.01) + TEST_YEAR, data=df_merged_math)
+summary(model2)
+```
+
+
+
+
+
+testing to see if the model above overfits the data:
+
+
+
+
+```{r}
+set.seed(253)
+samp = sample(1:nrow(df_merged_math), size=0.8*nrow(df_merged_math))
+train = df_merged_math[c(samp), ]
+test = df_merged_math[-c(samp), ]
+model_train = lm(AVG_SCORE ~ log(LOCAL_REVENUE) + log(CAPITAL_OUTLAY_EXPENDITURE) + TEST_YEAR, data=train)
+```
+
+
+
+```{r}
+yhat=predict(model_train, newdata=test)
+e1 = yhat-test$AVG_SCORE
+```
+
+
+```{r}
+cbind(RMSE=sqrt(mean(e1^2)), R2 = cor(yhat, test$AVG_SCORE^2))
+```
+
+```{r}
+df_newMexico = subset(df_merged, df_merged$STATE=="New Mexico")
+df_newMexico = subset(df_newMexico, df_newMexico$YEAR != 1992)
+df_newMexico = subset(df_newMexico, select=-c(STATE))
+```
+
+```{r}
+null.mexico = lm(AVG_SCORE~1, data=df_newMexico)
+full.mexico = lm(AVG_SCORE~., data=df_newMexico)
+f_mexico = step(step(null.mexico, scope=list(upper=full.mexico),
+direction="forward", trace=F))
+summary(f_mexico)
+```
+
+```{r}
+f_mexico = lm(AVG_SCORE ~ (TEST_YEAR*TEST_SUBJECT) + INSTRUCTION_EXPENDITURE + 
+    LOCAL_REVENUE-TEST_SUBJECT, data = df_newMexico)
+summary(f_mexico)
+```
+
+```{r}
+hist(f_mexico$residuals, main="Histogram of residuals", xlab="Residuals")
+```
+
+
+```{r}
+samp_mexico = sample(1:nrow(df_newMexico), size=0.8*nrow(df_newMexico))
+train_mexico = df_newMexico[c(samp), ]
+test_mexico = df_newMexico[-c(samp), ]
+model_train_mexico = lm(AVG_SCORE ~ log(LOCAL_REVENUE) + log(CAPITAL_OUTLAY_EXPENDITURE) + (TEST_YEAR * TEST_SUBJECT)-TEST_SUBJECT, data=train_mexico)
+summary(model_train_mexico)
+```
+
+
+```{r}
+yhat=predict(model_train, newdata=test_mexico)
+e1 = yhat-test_mexico$AVG_SCORE
+```
+
+```{r}
+cbind(RMSE=sqrt(mean(e1^2)), R2 = cor(yhat, test_mexico$AVG_SCORE^2))
+```
+```{r}
+mean(df_newMexico$AVG_SCORE)
+mean(df_newMexico$LOCAL_REVENUE)
+mean(df_newMexico$CAPITAL_OUTLAY_EXPENDITURE)
+```
+```{r}
+predict(model_mexico, newdata=data.frame(LOCAL_REVENUE=mean(df_newMexico$LOCAL_REVENUE), CAPITAL_OUTLAY_EXPENDITURE= mean(df_newMexico$CAPITAL_OUTLAY_EXPENDITURE), TEST_YEAR="8", TEST_SUBJECT="Mathematics"))
+```
+
+
+
+```{r}
+predict(model_mexico, newdata=data.frame((LOCAL_REVENUE=1000000), CAPITAL_OUTLAY_EXPENDITURE= mean(df_newMexico$CAPITAL_OUTLAY_EXPENDITURE), TEST_YEAR="8", TEST_SUBJECT="Mathematics"))
+```
+
+
+
+
+
